@@ -1,13 +1,25 @@
-import { Fragment, useState } from 'react'
+import { Fragment } from 'react'
+import { SubmitHandler, useForm } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Bank,
   CreditCard,
   CurrencyDollar,
+  MapPin,
   Money,
   Trash,
 } from '@phosphor-icons/react'
 
+import { coffees } from '../../../coffee_bd.json'
+import { useCart } from '../../hooks/useCart'
+import { QuantityInput } from '../../components/Form/QuantityInput'
+import { TextInput } from '../../components/Form/TextInput'
+import { Radio } from '../../components/Form/Radio'
 import {
+  AddressContainer,
+  AddressForm,
+  AddressHeading,
   CartTotal,
   CartTotalInfo,
   CheckoutButton,
@@ -20,125 +32,165 @@ import {
   PaymentHeading,
   PaymentOptions,
 } from './styles'
-import { Tags } from '../../components/CoffeeCard/styles';
-import { QuantityInput } from '../../components/Form/QuantityInput';
-import { Radio } from '../../components/Form/Radio';
 
-export interface Item {
-  id: string
-  quantity: number
+type FormInputs = {
+  cep: number
+  street: string
+  number: string
+  fullAddress: string
+  neighborhood: string
+  city: string
+  state: string
+  paymentMethod: 'credit' | 'debit' | 'cash'
 }
-export interface Order {
-  id: number
-  items: CoffeeInCart[]
-}
 
-interface CoffeeInCart {
-  id: string;
-  title: string;
-  description: string;
-  tags: string[];
-  price: number;
-  image: string;
-  quantity: number;
-  subTotal: number;
-} 
+const newOrder = z.object({
+  cep: z.number({ invalid_type_error: 'Informe o CEP' }),
+  street: z.string().min(1, 'Informe a rua'),
+  number: z.string().min(1, 'Informe o número'),
+  fullAddress: z.string(),
+  neighborhood: z.string().min(1, 'Informe o bairro'),
+  city: z.string().min(1, 'Informe a cidade'),
+  state: z.string().min(1, 'Informe a UF'),
+  paymentMethod: z.enum(['credit', 'debit', 'cash'], {
+    invalid_type_error: 'Informe um método de pagamento',
+  }),
+})
 
-const DELIVERY_PRICE = 3.75;
+export type OrderInfo = z.infer<typeof newOrder>
+
+const shippingPrice = 3.5
 
 export function Cart() {
-  const [coffeesInCart, setCoffeesInCart] = useState<CoffeeInCart[]>([
-    {
-      id: "0",
-      title: "Expresso Tradicional",
-      description: "O tradicional café feito com água quente e grãos moídos",
-      tags: ["tradicional", "gelado"],
-      price: 6.90,
-      image: "/images/coffees/expresso.png",
-      quantity: 1,
-      subTotal: 6.90,
-    },
-    {
-      id: "1",
-      title: "Expresso Americano",
-      description: "Expresso diluído, menos intenso que o tradicional",
-      tags: ["tradicional", "com leite"],
-      price: 9.95,
-      image: "/images/coffees/americano.png",
-      quantity: 2,
-      subTotal: 19.90,
-    },
-    {
-      id: "2",
-      title: "Expresso Cremoso",
-      description: "Café expresso tradicional com espuma cremosa",
-      tags: ["especial"],
-      price: 16.50,
-      image: "/images/coffees/expresso-cremoso.png",
-      quantity: 3,
-      subTotal: 49.50,
-    }
-  ]);
+  const {
+    cart,
+    checkout,
+    incrementItemQuantity,
+    decrementItemQuantity,
+    removeItem,
+  } = useCart()
 
-  const amountTags: string[] = [];
-  
-  coffeesInCart.map(coffee => coffee.tags.map((tag) => {
-    if (!amountTags.includes(tag)) {
-      amountTags.push(tag);
-    }
-  }));
-  
-  const totalItemsPrice = coffeesInCart.reduce((currencyValue, coffee) => {
-    return currencyValue + coffee.price * coffee.quantity
-  }, 0);
+  const coffeesInCart = cart.map((item) => {
+    const coffeeInfo = coffees.find((coffee) => coffee.id === item.id)
 
-  function handleItemIncrement(id: string) {
-    setCoffeesInCart((prevState) =>
-      prevState.map((coffee) => {
-        if (coffee.id === id) {
-          const coffeeQuantity = coffee.quantity + 1
-          const subTotal = coffee.price * coffeeQuantity
-          return {
-            ...coffee,
-            quantity: coffeeQuantity,
-            subTotal,
-          }
-        }
-        return coffee
-      }),
-    )
-    
+    if (!coffeeInfo) {
+      throw new Error('Invalid coffee.')
+    }
+
+    return {
+      ...coffeeInfo,
+      quantity: item.quantity,
+    }
+  })
+
+  const totalItemsPrice = coffeesInCart.reduce((previousValue, currentItem) => {
+    return (previousValue += currentItem.price * currentItem.quantity)
+  }, 0)
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<FormInputs>({
+    resolver: zodResolver(newOrder),
+  })
+
+  const selectedPaymentMethod = watch('paymentMethod')
+
+  function handleItemIncrement(itemId: string) {
+    incrementItemQuantity(itemId)
   }
 
   function handleItemDecrement(itemId: string) {
-    setCoffeesInCart((prevState) =>
-      prevState.map((coffee) => {
-        if (coffee.id === itemId && coffee.quantity > 1) {
-          const coffeeQuantity = coffee.quantity - 1;
-          const subTotal = coffee.price * coffeeQuantity;
-          return {
-            ...coffee,
-            quantity: coffeeQuantity,
-            subTotal,
-          }
-        }
-        return coffee
-      }),
-    )
+    decrementItemQuantity(itemId)
   }
 
   function handleItemRemove(itemId: string) {
-    setCoffeesInCart((prevState) =>
-      prevState.filter((coffee) => coffee.id !== itemId),
-    )
+    removeItem(itemId)
+  }
+
+  const handleOrderCheckout: SubmitHandler<FormInputs> = (data) => {
+    if (cart.length === 0) {
+      return alert('É preciso ter pelo menos um item no carrinho')
+    }
+
+    checkout(data)
   }
 
   return (
     <Container>
-      
-
       <InfoContainer>
-      <PaymentContainer>
+        <h2>Complete seu pedido</h2>
+
+        <form id="order" onSubmit={handleSubmit(handleOrderCheckout)}>
+          <AddressContainer>
+            <AddressHeading>
+              <MapPin size={22} />
+
+              <div>
+                <span>Endereço de Entrega</span>
+
+                <p>Informe o endereço onde deseja receber o seu pedido</p>
+              </div>
+            </AddressHeading>
+
+            <AddressForm>
+              <TextInput
+                placeholder="CEP"
+                type="number"
+                containerProps={{ style: { gridArea: 'cep' } }}
+                error={errors.cep}
+                {...register('cep', { valueAsNumber: true })}
+              />
+
+              <TextInput
+                placeholder="Rua"
+                containerProps={{ style: { gridArea: 'street' } }}
+                error={errors.street}
+                {...register('street')}
+              />
+
+              <TextInput
+                placeholder="Número"
+                containerProps={{ style: { gridArea: 'number' } }}
+                error={errors.number}
+                {...register('number')}
+              />
+
+              <TextInput
+                placeholder="Complemento"
+                optional
+                containerProps={{ style: { gridArea: 'fullAddress' } }}
+                error={errors.fullAddress}
+                {...register('fullAddress')}
+              />
+
+              <TextInput
+                placeholder="Bairro"
+                containerProps={{ style: { gridArea: 'neighborhood' } }}
+                error={errors.neighborhood}
+                {...register('neighborhood')}
+              />
+
+              <TextInput
+                placeholder="Cidade"
+                containerProps={{ style: { gridArea: 'city' } }}
+                error={errors.city}
+                {...register('city')}
+              />
+
+              <TextInput
+                placeholder="UF"
+                maxLength={2}
+                containerProps={{ style: { gridArea: 'state' } }}
+                error={errors.state}
+                {...register('state')}
+              />
+            </AddressForm>
+          </AddressContainer>
+
+          <PaymentContainer>
             <PaymentHeading>
               <CurrencyDollar size={22} />
 
@@ -155,8 +207,8 @@ export function Cart() {
             <PaymentOptions>
               <div>
                 <Radio
-                  isSelected={false}
-                  onClick={() => {}}
+                  isSelected={selectedPaymentMethod === 'credit'}
+                  {...register('paymentMethod')}
                   value="credit"
                 >
                   <CreditCard size={16} />
@@ -164,8 +216,8 @@ export function Cart() {
                 </Radio>
 
                 <Radio
-                  isSelected={false}
-                  onClick={() => {}}
+                  isSelected={selectedPaymentMethod === 'debit'}
+                  {...register('paymentMethod')}
                   value="debit"
                 >
                   <Bank size={16} />
@@ -173,22 +225,23 @@ export function Cart() {
                 </Radio>
 
                 <Radio
-                  isSelected={true}
-                  onClick={() => {}}
+                  isSelected={selectedPaymentMethod === 'cash'}
+                  {...register('paymentMethod')}
                   value="cash"
                 >
                   <Money size={16} />
-                  <span>Pix ou Dinheiro</span>
+                  <span>Dinheiro</span>
                 </Radio>
               </div>
 
-              {false ? (
+              {errors.paymentMethod ? (
                 <PaymentErrorMessage role="alert">
-                  <span>Selecione uma forma de pagamento</span>
+                  {errors.paymentMethod.message}
                 </PaymentErrorMessage>
               ) : null}
             </PaymentOptions>
           </PaymentContainer>
+        </form>
       </InfoContainer>
 
       <InfoContainer>
@@ -203,11 +256,6 @@ export function Cart() {
 
                   <div>
                     <span>{coffee.title}</span>
-                      <Tags>
-                        {coffee.tags.map((tag) => (
-                          <span key={tag}>{tag}</span>
-                        ))}
-                      </Tags>
 
                     <CoffeeInfo>
                       <QuantityInput
@@ -224,7 +272,7 @@ export function Cart() {
                   </div>
                 </div>
 
-                <aside>R$ {coffee.subTotal?.toFixed(2)}</aside>
+                <aside>R$ {coffee.price?.toFixed(2)}</aside>
               </Coffee>
 
               <span />
@@ -248,7 +296,7 @@ export function Cart() {
                 {new Intl.NumberFormat('pt-br', {
                   currency: 'BRL',
                   style: 'currency',
-                }).format(DELIVERY_PRICE)}
+                }).format(shippingPrice)}
               </span>
             </div>
 
@@ -258,7 +306,7 @@ export function Cart() {
                 {new Intl.NumberFormat('pt-br', {
                   currency: 'BRL',
                   style: 'currency',
-                }).format(totalItemsPrice + (DELIVERY_PRICE * amountTags.length))}
+                }).format(totalItemsPrice + shippingPrice)}
               </span>
             </div>
           </CartTotalInfo>
@@ -268,7 +316,6 @@ export function Cart() {
           </CheckoutButton>
         </CartTotal>
       </InfoContainer>
-      {/* <Success /> */}
     </Container>
   )
 }

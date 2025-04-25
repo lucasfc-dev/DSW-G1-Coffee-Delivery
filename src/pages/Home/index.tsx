@@ -1,12 +1,11 @@
 import { Coffee, Package, ShoppingCart, Timer } from '@phosphor-icons/react'
 import { useTheme } from 'styled-components'
 
-import { CoffeeCard } from '../../components/CoffeeCard'
+import { Card } from '../../components/Card'
 
-import { CoffeeList, Heading, Hero, HeroContent, Info, Navbar } from './styles'
+import { api } from '../../servers/api';
+import { CoffeeList, Heading, Hero, HeroContent, Info } from './styles'
 import { useEffect, useState } from 'react';
-import { Radio } from '../../components/Form/Radio';
-import { api } from '../../serves/api';
 
 interface Coffee {
   id: string;
@@ -22,7 +21,7 @@ interface Coffee {
 export function Home() {
   const theme = useTheme();
   const [coffees, setCoffees] = useState<Coffee[]>([]);
-
+  
   useEffect(() => {
     async function fetchCoffees() {
       const response = await api('/coffees');
@@ -32,52 +31,6 @@ export function Home() {
     }
     fetchCoffees();
   }, []);
-
-
-  
-  function incrementQuantity(id: string) {
-    setCoffees((prevState) =>
-      prevState.map((coffee) => {
-        if (coffee.id === id) {
-          return {
-            ...coffee,
-            quantity: coffee.quantity + 1,
-          }
-        }
-        return coffee
-      }
-      ),
-    );
-  }
-
-  function decrementQuantity(id: string) {
-    setCoffees((prevState) =>
-      prevState.map((coffee) => {
-        if (coffee.id === id && coffee.quantity > 0) {
-          return {
-            ...coffee,
-            quantity: coffee.quantity - 1,
-          }
-        }
-        return coffee
-      }),
-    );
-  }
-
-  function handleFavoriteCoffee(id: string) {
-    setCoffees((prevState) =>
-      prevState.map((coffee) => {
-        if (coffee.id === id) {
-          return {
-            ...coffee,
-            favorite: !coffee.favorite,
-          }
-        }
-        return coffee
-      }),
-    )
-    
-  }
 
   return (
     <div>
@@ -143,42 +96,11 @@ export function Home() {
       </Hero>
 
       <CoffeeList>
-
         <h2>Nossos cafés</h2>
-        <Navbar>
-          <Radio
-            onClick={() => {}}
-            isSelected={false}
-            value="tradicional"
-          >
-            <span>Tradicional</span>
-          </Radio>
-          <Radio
-            onClick={() => {}}
-            isSelected={false}
-            value="gelado"
-          >
-            <span>Gelado</span>
-          </Radio>
-          <Radio
-            onClick={() => {}}
-            isSelected={false}
-            value="com leite"
-          >
-            <span>Com leite</span>
-          </Radio>
-        </Navbar>
-
 
         <div>
           {coffees.map((coffee) => (
-            <CoffeeCard
-              key={coffee.id}
-              coffee={coffee}
-              incrementQuantity={incrementQuantity}
-              decrementQuantity={decrementQuantity}
-              handleFavoriteCoffee={handleFavoriteCoffee}
-            />
+            <Card key={coffee.id} coffee={coffee} />
           ))}
         </div>
       </CoffeeList>
